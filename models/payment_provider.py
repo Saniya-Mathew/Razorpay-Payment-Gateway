@@ -11,10 +11,10 @@ from odoo.addons.payment_razorpay_oauth.controllers.onboarding import RazorpayCo
 class PaymentProvider(models.Model):
     _inherit = 'payment.provider'
 
-    code = fields.Selection(selection_add=[('razorpay_v25', "Razorpay_v25")],ondelete={'razorpay_v25': 'set default'})
-    razorpay_key_id = fields.Char(string="Razorpay Key Id")
-    razorpay_key_secret = fields.Char(string="Razorpay Key Secret")
-    razorpay_webhook_secret = fields.Char(string="Razorpay Webhook Secret")
+    code = fields.Selection(selection_add=[('razorpay_v25', "Razorpay V25")],ondelete={'razorpay_v25': 'cascade'},)
+    razorpay_v25_key_id = fields.Char(string="Key Id")
+    razorpay_v25_key_secret = fields.Char(string="key Secret")
+    razorpay_v25_webhook_secret = fields.Char(string="Webhook Secret")
 
 
     def action_razorpay_redirect_to_oauth_url(self):

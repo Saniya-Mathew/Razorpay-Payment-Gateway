@@ -3,6 +3,7 @@
 
     <record id="payment_provider_razorpay_plus" model="payment.provider">
         <field name="name">Razorpay V25</field>
+        <field name="code">razorpay_v25</field>
         <field name="image_128" type="base64" file="razorpay_payment/static/src/img/icon.jpeg"/>
         <field name="module_id" ref="base.module_razorpay_payment"/>
         <!-- https://razorpay.com/docs/payments/payment-methods/#supported-payment-methods -->

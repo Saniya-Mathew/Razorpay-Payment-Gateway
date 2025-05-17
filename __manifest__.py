@@ -10,6 +10,7 @@
         'data/payment_provider_data.xml',
         'data/payment_method_razorpay.xml',
         'views/payment_provider_views.xml',
+        'views/payment_razorpay_templates.xml',
 
     ],
     'license': 'LGPL-3',
