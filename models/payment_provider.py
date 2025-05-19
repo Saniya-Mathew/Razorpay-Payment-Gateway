@@ -1,7 +1,12 @@
+import pprint
+import uuid
+from datetime import timedelta
+
+import requests
 from odoo import models, fields,_
 from urllib.parse import urlencode
 from odoo.exceptions import RedirectWarning, ValidationError
-from odoo.http import request
+from odoo.http import request, _logger
 from odoo.addons.payment_razorpay import const
 from odoo.addons.payment_razorpay_oauth import const as oauth_const
 from odoo.addons.payment_razorpay_oauth.controllers.onboarding import RazorpayController
@@ -48,3 +53,33 @@ class PaymentProvider(models.Model):
             'url': authorization_url,
             'target': 'self',
         }
+
+        # === BUSINESS METHODS - OAUTH === #
+    def _razorpay_make_request(self, endpoint, payload=None, method='POST'):
+        self.ensure_one()
+
+        api_version = self.env.context.get('razorpay_api_version', 'v1')
+        url = f'https://api.razorpay.com/{api_version}/{endpoint}'
+        auth = (self.razorpay_v25_key_id, self.razorpay_v25_key_secret)
+
+        try:
+            if method == 'GET':
+                response = requests.get(url, params=payload, auth=auth, timeout=10)
+            else:
+                response = requests.post(url, json=payload, auth=auth, timeout=10)
+
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError:
+                _logger.exception("Invalid API request at %s with data:\n%s", url, pprint.pformat(payload))
+                raise ValidationError("Razorpay: " + _(
+                    "Razorpay gave us the following information: '%s'",
+                    response.json().get('error', {}).get('description')
+                ))
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            _logger.exception("Unable to reach endpoint at %s", url)
+            raise ValidationError(
+                "Razorpay: " + _("Could not establish the connection to the API.")
+            )
+        return response.json()
+
