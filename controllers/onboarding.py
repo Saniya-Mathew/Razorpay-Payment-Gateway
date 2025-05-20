@@ -1,31 +1,52 @@
-# import razorpay_payment
-# from odoo.custom_addons import razorpay_payment
+# -*- coding: utf-8 -*-
 from odoo import http
 from odoo.http import request
+from werkzeug.exceptions import Forbidden
+import logging
+import hmac
+import hashlib
+import json
+from odoo.addons.payment_razorpay import const
+
+_logger = logging.getLogger(__name__)
 
 class RazorpayController(http.Controller):
+    _webhook_url = '/payment/razorpay/webhook'
 
-    @http.route(['/payment/razorpay/checkout'], type='http', auth='public', website=True)
-    def razorpay_checkout(self, **kwargs):
-        order = request.env['sale.order'].sudo().browse(int(kwargs.get('order_id')))
-        acquirer = request.env['payment.acquirer'].sudo().search([('provider', '=', 'razorpay_v25')], limit=1)
-        # client = razorpay_payment.Client(auth=(acquirer.razorpay_key_id, acquirer.razorpay_key_secret))
+    @http.route(_webhook_url, type='json', auth='public', methods=['POST'], csrf=False)
+    def razorpay_webhook(self):
+        print("hiii hello")
+        data = request.get_json_data()
+        _logger.info("Razorpay Webhook received: %s", json.dumps(data, indent=2))
 
-        razorpay_order = client.order.create({
-            "amount": int(order.amount_total * 100),
-            "currency": "INR",
-            "receipt": str(order.name),
-            "payment_capture": 1
-        })
+        event_type = data.get('event')
+        if event_type not in const.HANDLED_WEBHOOK_EVENTS:
+            _logger.info("Razorpay: Ignoring unhandled event type %s", event_type)
+            return {'status': 'ignored'}
 
-        values = {
-            'key_id': acquirer.razorpay_key_id,
-            'order_id': razorpay_order['id'],
-            'amount': int(order.amount_total * 100),
-            'order': order,
-        }
-        return request.render('razorpay_payment.razorpay_template', values)
+        entity = data['payload'].get('payment', {}).get('entity', data['payload'].get('refund', {}).get('entity'))
+        if not entity:
+            _logger.error("Razorpay: Invalid webhook payload, no entity found")
+            return {'status': 'error'}
 
-    @http.route(['/payment/razorpay/return'], type='http', auth='public', csrf=False)
-    def razorpay_return(self, **post):
-        return request.redirect('/payment/success')
+        received_signature = request.httprequest.headers.get('X-Razorpay-Signature')
+        tx = request.env['payment.transaction'].sudo()._get_tx_from_notification_data('razorpay_v25', entity)
+
+        expected_signature = tx.provider_id._razorpay_calculate_signature(request.httprequest.data)
+        if not received_signature or not hmac.compare_digest(received_signature.encode('utf-8'), expected_signature.encode('utf-8')):
+            _logger.error("Razorpay: Invalid webhook signature for transaction %s", tx.reference)
+            raise Forbidden("Invalid webhook signature")
+
+        try:
+            tx._handle_notification_data('razorpay_v25', entity)
+            if tx.state == 'done':
+                for sale_order in tx.sale_order_ids:
+                    if sale_order.state == 'done':
+                        sale_order.action_confirm()
+                        _logger.info("Confirmed Sale Order: %s", sale_order.name)
+            return {'status': 'success'}
+
+        except Exception as e:
+            _logger.exception("Razorpay: Error processing webhook for transaction %s: %s", tx.reference, str(e))
+            return {'status': 'error'}
+

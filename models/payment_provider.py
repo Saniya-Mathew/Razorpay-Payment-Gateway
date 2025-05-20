@@ -1,85 +1,56 @@
-import pprint
-import uuid
-from datetime import timedelta
-
+#-- coding: utf-8 --
+from odoo import _, fields, models
+from odoo.exceptions import ValidationError
 import requests
-from odoo import models, fields,_
-from urllib.parse import urlencode
-from odoo.exceptions import RedirectWarning, ValidationError
-from odoo.http import request, _logger
+import logging
+import hmac
+import hashlib
 from odoo.addons.payment_razorpay import const
-from odoo.addons.payment_razorpay_oauth import const as oauth_const
-from odoo.addons.payment_razorpay_oauth.controllers.onboarding import RazorpayController
-
-
+_logger = logging.getLogger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = 'payment.provider'
 
     code = fields.Selection(selection_add=[('razorpay_v25', "Razorpay V25")],ondelete={'razorpay_v25': 'cascade'},)
-    razorpay_v25_key_id = fields.Char(string="Key Id")
-    razorpay_v25_key_secret = fields.Char(string="key Secret")
-    razorpay_v25_webhook_secret = fields.Char(string="Webhook Secret")
+    razorpay_v25_key_id = fields.Char(string="Key Id",required_if_provider='razorpay', help="Public key provided by Razorpay.")
+    razorpay_v25_key_secret = fields.Char(string="key Secret", required_if_provider='razorpay', groups='base.group_system')
+    razorpay_v25_webhook_secret = fields.Char(string="Webhook Secret",groups='base.group_system')
 
+    def _compute_feature_support_fields(self):
+        super()._compute_feature_support_fields()
+        self.filtered(lambda p: p.code == 'razorpay_v25').update({
+            'support_manual_capture': 'full_only',
+            'support_refund': 'partial',
+            'support_tokenization': True,
+        })
 
-    def action_razorpay_redirect_to_oauth_url(self):
-        """ Redirect to the Razorpay OAuth URL.
-
-        Note: `self.ensure_one()`
-
-        :return: An URL action to redirect to the Razorpay OAuth URL.
-        :rtype: dict
-        """
-        self.ensure_one()
-
-        if self.company_id.currency_id.name not in const.SUPPORTED_CURRENCIES:
-            raise RedirectWarning(
-                _(
-                    "Razorpay is not available in your country; please use another payment"
-                    " provider."
-                ),
-                self.env.ref('payment.action_payment_provider').id,
-                _("Other Payment Providers"),
-            )
-
-        params = {
-            'return_url': f'{self.get_base_url()}{RazorpayController.OAUTH_RETURN_URL}',
-            'provider_id': self.id,
-            'csrf_token': request.csrf_token(),
-        }
-        authorization_url = f'{oauth_const.OAUTH_URL}/authorize?{urlencode(params)}'
-        return {
-            'type': 'ir.actions.act_url',
-            'url': authorization_url,
-            'target': 'self',
-        }
-
-        # === BUSINESS METHODS - OAUTH === #
     def _razorpay_make_request(self, endpoint, payload=None, method='POST'):
         self.ensure_one()
+        if not self.razorpay_v25_key_id or not self.razorpay_v25_key_secret:
+            raise ValidationError(_("Razorpay credentials are missing. Please configure Key ID and Key Secret."))
 
-        api_version = self.env.context.get('razorpay_api_version', 'v1')
-        url = f'https://api.razorpay.com/{api_version}/{endpoint}'
+        url = f"https://api.razorpay.com/v1/{endpoint}"
         auth = (self.razorpay_v25_key_id, self.razorpay_v25_key_secret)
+        headers = {'Content-Type': 'application/json'}
 
         try:
             if method == 'GET':
-                response = requests.get(url, params=payload, auth=auth, timeout=10)
+                response = requests.get(url, headers=headers, auth=auth, params=payload, timeout=10)
             else:
-                response = requests.post(url, json=payload, auth=auth, timeout=10)
+                response = requests.request(method, url, headers=headers, auth=auth, json=payload, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            error_data = response.json().get('error', {})
+            msg = error_data.get('description', str(e))
+            _logger.error("Razorpay API error: %s", msg)
+            raise ValidationError(_("Razorpay API error: %s") % msg)
+        except requests.exceptions.RequestException as e:
+            _logger.error("Razorpay connection error: %s", str(e))
+            raise ValidationError(_("Failed to connect to Razorpay: %s") % str(e))
 
-            try:
-                response.raise_for_status()
-            except requests.exceptions.HTTPError:
-                _logger.exception("Invalid API request at %s with data:\n%s", url, pprint.pformat(payload))
-                raise ValidationError("Razorpay: " + _(
-                    "Razorpay gave us the following information: '%s'",
-                    response.json().get('error', {}).get('description')
-                ))
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            _logger.exception("Unable to reach endpoint at %s", url)
-            raise ValidationError(
-                "Razorpay: " + _("Could not establish the connection to the API.")
-            )
         return response.json()
 
+    def _get_validation_amount(self):
+        if self.code != 'razorpay_v25':
+            return super()._get_validation_amount()
+        return 1.0
