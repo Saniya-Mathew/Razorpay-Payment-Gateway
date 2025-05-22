@@ -4,21 +4,21 @@
 import { _t } from '@web/core/l10n/translation';
 import { loadJS } from '@web/core/assets';
 import paymentForm from '@payment/js/payment_form';
+import { rpc } from "@web/core/network/rpc";
 
 paymentForm.include({
-
     async _prepareInlineForm(providerId, providerCode, paymentOptionId, paymentMethodCode, flow) {
         if (providerCode !== 'razorpay_v25') {
             this._super(...arguments);
             return;
         }
-
         if (flow === 'token') {
             return;
         }
         this._setPaymentFlow('direct');
     },
 
+    // #=== PAYMENT FLOW ===#
 
     async _processDirectFlow(providerCode, paymentOptionId, paymentMethodCode, processingValues) {
         if (providerCode !== 'razorpay_v25') {
@@ -34,7 +34,6 @@ paymentForm.include({
         });
     },
 
-  
     _prepareRazorpayOptions(processingValues) {
         return Object.assign({}, processingValues, {
             'key': processingValues['razorpay_public_token'] || processingValues['razorpay_v25_key_id'],
@@ -42,12 +41,16 @@ paymentForm.include({
             'order_id': processingValues['razorpay_order_id'],
             'description': processingValues['reference'],
             'recurring': processingValues['is_tokenize_request'] ? '1': '0',
-            'handler': response => {
+            'handler': async response => {
                 if (
                     response['razorpay_payment_id']
                     && response['razorpay_order_id']
                     && response['razorpay_signature']
                 ) {
+                    await rpc('/razorpay_v25/verify_payment', {
+                        reference: processingValues.reference,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                    });
                     window.location = '/payment/status';
                 }
             },

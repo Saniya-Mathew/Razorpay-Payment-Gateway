@@ -12,17 +12,11 @@ class PaymentProvider(models.Model):
     _inherit = 'payment.provider'
 
     code = fields.Selection(selection_add=[('razorpay_v25', "Razorpay V25")],ondelete={'razorpay_v25': 'cascade'},)
-    razorpay_v25_key_id = fields.Char(string="Key Id",required_if_provider='razorpay', help="Public key provided by Razorpay.")
-    razorpay_v25_key_secret = fields.Char(string="key Secret", required_if_provider='razorpay', groups='base.group_system')
+    razorpay_v25_key_id = fields.Char(string="Key Id",required_if_provider='razorpay',
+                                      help="Public key provided by Razorpay.")
+    razorpay_v25_key_secret = fields.Char(string="key Secret", required_if_provider='razorpay',
+                                          groups='base.group_system')
     razorpay_v25_webhook_secret = fields.Char(string="Webhook Secret",groups='base.group_system')
-
-    def _compute_feature_support_fields(self):
-        super()._compute_feature_support_fields()
-        self.filtered(lambda p: p.code == 'razorpay_v25').update({
-            'support_manual_capture': 'full_only',
-            'support_refund': 'partial',
-            'support_tokenization': True,
-        })
 
     def _razorpay_make_request(self, endpoint, payload=None, method='POST'):
         self.ensure_one()
@@ -50,7 +44,6 @@ class PaymentProvider(models.Model):
 
         return response.json()
 
-    def _get_validation_amount(self):
-        if self.code != 'razorpay_v25':
-            return super()._get_validation_amount()
-        return 1.0
+
+
+

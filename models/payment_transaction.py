@@ -1,4 +1,5 @@
-# -- coding: utf-8 --
+
+# -*- coding: utf-8 -*-
 from odoo import _, api, models
 from odoo.exceptions import ValidationError
 from datetime import datetime
@@ -31,8 +32,8 @@ class PaymentTransaction(models.Model):
 
     def _razorpay_create_customer(self):
         payload = {
-            'name': self.partner_name or 'Anonymous',
-            'email': self.partner_email or f'customer_{self.partner_id.id}@example.com',
+            'name': self.partner_name,
+            'email': self.partner_email or '',
             'contact': self.partner_phone or '',
             'fail_existing': '0',
         }
@@ -44,13 +45,11 @@ class PaymentTransaction(models.Model):
 
     def _razorpay_prepare_order_payload(self, customer_id=None):
         converted_amount = payment_utils.to_minor_currency_units(self.amount, self.currency_id)
+        pm_code = (self.payment_method_id.primary_payment_method_id or self.payment_method_id).code
         payload = {
             'amount': converted_amount,
             'currency': self.currency_id.name,
-            'receipt': self.reference,
-            'notes': {
-                'odoo_reference': self.reference,
-            },
+            **({'method': pm_code} if pm_code not in const.FALLBACK_PAYMENT_METHOD_CODES else {}),
         }
 
         if self.operation in ['online_direct', 'validation']:
@@ -87,7 +86,7 @@ class PaymentTransaction(models.Model):
             _logger.error("Razorpay: No reference found in notification data")
             raise ValidationError(_("Razorpay: Missing transaction reference"))
 
-        tx = self.search([('reference', '=', reference), ('provider_code', '=', 'razorpay_v25')])
+        tx = self.search([('reference', '=', reference), ('provider_code', '=', 'razorpay')])
         if not tx:
             _logger.error("Razorpay: No transaction found for reference %s", reference)
             raise ValidationError(_("Razorpay: No transaction found for reference %s") % reference)
@@ -100,14 +99,14 @@ class PaymentTransaction(models.Model):
         status = notification_data.get('status')
         payment_id = notification_data.get('id')
 
-        if status == 'captured':
+        if status == 'success':
             self._set_done()
             self.provider_reference = payment_id
         elif status == 'authorized' and self.provider_id.capture_manually:
             self._set_authorized()
             self.provider_reference = payment_id
         elif status == 'failed':
-            self.set_error(("Payment failed: %s") % notification_data.get('error_description', 'Unknown error'))
+            self._set_error(_("Payment failed: %s") % notification_data.get('error_description', 'Unknown error'))
         elif status == 'refunded':
             self._set_refunded()
         else:
@@ -115,6 +114,3 @@ class PaymentTransaction(models.Model):
             self._set_pending()
 
         return True
-
-
-
