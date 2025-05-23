@@ -86,7 +86,7 @@ class PaymentTransaction(models.Model):
             _logger.error("Razorpay: No reference found in notification data")
             raise ValidationError(_("Razorpay: Missing transaction reference"))
 
-        tx = self.search([('reference', '=', reference), ('provider_code', '=', 'razorpay')])
+        tx = self.search([('reference', '=', reference), ('provider_code', '=', 'razorpay_v25')])
         if not tx:
             _logger.error("Razorpay: No transaction found for reference %s", reference)
             raise ValidationError(_("Razorpay: No transaction found for reference %s") % reference)

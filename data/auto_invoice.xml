@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <record id="sale_config_settings_auto_invoice" model="res.config.settings">
+        <field name="automatic_invoice" eval="True"/>
+    </record>
+</odoo>

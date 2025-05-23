@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="1">
-
-    <record id="payment_provider_razorpay_plus" model="payment.provider">
+<odoo>
+    <record id="payment_provider_razorpay_v25" model="payment.provider">
         <field name="name">Razorpay V25</field>
         <field name="code">razorpay_v25</field>
         <field name="image_128" type="base64" file="razorpay_payment/static/src/img/icon.jpeg"/>
@@ -9,6 +8,7 @@
         <!-- https://razorpay.com/docs/payments/payment-methods/#supported-payment-methods -->
         <field name="payment_method_ids"
                eval="[Command.set([
+                         ref('razorpay_payment.payment_method_razorpay_v25'),
                          ref('payment.payment_method_card'),
                          ref('payment.payment_method_netbanking'),
                          ref('payment.payment_method_upi'),

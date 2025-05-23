@@ -2,8 +2,8 @@
 <odoo>
     <record id="payment_method_razorpay_v25" model="payment.method">
         <field name="name">RazorPay V25</field>
-        <field name="code">razorpay_v25</field>
-        <field name="sequence">1002</field>
+        <field name="code">card</field>
+        <field name="sequence">12</field>
         <field name="active">True</field>
         <field name="image" type="base64" file="razorpay_payment/static/src/img/icon.png"/>
         <field name="support_tokenization">True</field>
