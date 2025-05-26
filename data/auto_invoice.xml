@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<odoo>
-    <record id="sale_config_settings_auto_invoice" model="res.config.settings">
-        <field name="automatic_invoice" eval="True"/>
-    </record>
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+        <record id="enable_sale_automatic_invoice" model="ir.config_parameter">
+            <field name="key">sale.automatic_invoice</field>
+            <field name="value">True</field>
+        </record>
 </odoo>

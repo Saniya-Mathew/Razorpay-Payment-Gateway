@@ -12,8 +12,6 @@
                     <field name="razorpay_v25_webhook_secret"/>
                 </group>
             </group>
-<!--            <button string="Connect" type="object"-->
-<!--                            name="action_razorpay_redirect_to_oauth_url" class="btn-primary"/>-->
         </field>
     </record>
 </odoo>

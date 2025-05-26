@@ -12,14 +12,12 @@
         'data/payment_provider_data.xml',
         'views/payment_provider_views.xml',
         'views/payment_razorpay_templates.xml',
-
     ],
     'assets': {
         'web.assets_frontend': [
             'razorpay_payment/static/src/js/razorpay_v25.js'
         ],
     },
-    # 'post_init_hook': 'post_init_hook',
     'license': 'LGPL-3',
     'installable': True,
 }
